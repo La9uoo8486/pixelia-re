@@ -37,6 +37,17 @@ function toast(msg) {
   clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2200);
 }
 
+// ---------- 사전예약 보상 ----------
+{
+  const r = C.PREREG_REWARD || {};
+  const items = (r.items || []).filter(Boolean);
+  if (items.length) {
+    $('preRewardList').innerHTML = items.map(t => `<li>${esc(t)}</li>`).join('');
+    $('preRewardNote').textContent = r.note ? '📬 ' + r.note : '';
+    $('preReward').hidden = false;
+  }
+}
+
 // ---------- 카운트다운 ----------
 const OPEN = Date.parse(C.OPEN_AT || '2026-12-01T00:00:00+09:00');
 $('openDate').textContent = new Date(OPEN).toLocaleString('ko-KR', {
