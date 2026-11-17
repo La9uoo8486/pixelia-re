@@ -1,4 +1,4 @@
-import { IS_DEMO, SOURCES, sourceLabel, esc, getBackend, fmtKST } from './common.js';
+import { C, IS_DEMO, SOURCES, sourceLabel, esc, getBackend, fmtKST } from './common.js';
 
 const api = getBackend('pixelia-admin');
 const $ = id => document.getElementById(id);
@@ -32,15 +32,43 @@ async function boot() {
     showLogin('불러오기 실패: ' + (e.message || e));
   }
 }
+// Turnstile (사이트 키가 있고 데모가 아닐 때만). Supabase 캡차 보호가 켜져 있으면 로그인에 토큰이 필요함
+const USE_CAPTCHA = !!C.TURNSTILE_SITE_KEY && !IS_DEMO;
+let captchaId = null, captchaToken = '';
+if (USE_CAPTCHA) {
+  window.onTurnstileLoad = () => {
+    captchaId = window.turnstile.render('#captcha', {
+      sitekey: C.TURNSTILE_SITE_KEY, theme: 'dark', language: 'ko',
+      callback: t => { captchaToken = t; },
+      'expired-callback': () => { captchaToken = ''; },
+      'error-callback': () => { captchaToken = ''; },
+    });
+  };
+  const s = document.createElement('script');
+  s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?onload=onTurnstileLoad&render=explicit';
+  s.async = true; document.head.appendChild(s);
+}
+// 토큰은 한 번만 쓸 수 있으므로 로그인 시도마다 새로 발급
+const resetCaptcha = () => { captchaToken = ''; if (captchaId !== null) window.turnstile.reset(captchaId); };
+
 $('loginForm').addEventListener('submit', async e => {
   e.preventDefault();
   $('loginErr').textContent = '';
+  if (USE_CAPTCHA && !captchaToken) { $('loginErr').textContent = '보안 확인(캡차)을 완료해주세요.'; return; }
+  const btn = e.submitter || $('loginForm').querySelector('button[type="submit"]');
+  btn.disabled = true;
   try {
-    await api.signIn($('email').value.trim(), $('pw').value);
+    await api.signIn($('email').value.trim(), $('pw').value, captchaToken);
     $('pw').value = '';
     await boot();
   } catch (err) {
-    $('loginErr').textContent = /invalid/i.test(err.message) ? '이메일 또는 비밀번호가 틀렸어요.' : '로그인 실패: ' + err.message;
+    const m = err.message || String(err);
+    $('loginErr').textContent = /invalid/i.test(m) ? '이메일 또는 비밀번호가 틀렸어요.'
+      : /captcha/i.test(m) ? '보안 확인에 실패했어요. 캡차를 다시 완료해주세요.'
+      : '로그인 실패: ' + m;
+  } finally {
+    resetCaptcha();
+    btn.disabled = false;
   }
 });
 $('logoutBtn').addEventListener('click', async () => { await api.signOut(); rows = []; showLogin(); });

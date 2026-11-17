@@ -86,8 +86,10 @@ function sbBackend(storageKey) {
     },
 
     // 관리자
-    async signIn(email, password) {
-      const { error } = await (await sb()).auth.signInWithPassword({ email, password });
+    async signIn(email, password, captchaToken) {
+      const { error } = await (await sb()).auth.signInWithPassword({
+        email, password, ...(captchaToken ? { options: { captchaToken } } : {}),
+      });
       if (error) throw error;
     },
     async signOut() { await (await sb()).auth.signOut(); },
