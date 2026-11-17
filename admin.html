@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>픽셀리아 사전예약 관리자</title>
+<meta name="theme-color" content="#0d0f1f">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css">
+<link rel="stylesheet" href="css/style.css">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js" defer></script>
+</head>
+<body class="admin">
+<div id="demoBar" class="demo-bar" hidden>데모 모드 · 아무 이메일/비밀번호로 로그인됩니다 (이 기기에만 저장)</div>
+
+<header class="admin-top">
+  <h1>PIXELIA ADMIN</h1>
+  <div id="topActions" class="actions" hidden>
+    <span id="who" class="who"></span>
+    <button id="reloadBtn" class="btn btn-ghost" type="button">새로고침</button>
+    <button id="csvBtn" class="btn" type="button">CSV 다운로드</button>
+    <button id="logoutBtn" class="btn btn-ghost" type="button">로그아웃</button>
+  </div>
+</header>
+
+<!-- 로그인 -->
+<section id="loginView" class="panel login" hidden>
+  <h2 class="panel-title">관리자 로그인</h2>
+  <form id="loginForm">
+    <label class="field"><span class="label">이메일</span><input id="email" type="email" autocomplete="username" required></label>
+    <label class="field"><span class="label">비밀번호</span><input id="pw" type="password" autocomplete="current-password" required></label>
+    <p id="loginErr" class="form-error" role="alert"></p>
+    <button class="btn btn-primary" type="submit">로그인</button>
+  </form>
+</section>
+
+<main id="dash" class="wrap" hidden>
+  <section class="kpis" id="kpis"></section>
+
+  <section class="panel">
+    <h2 class="panel-title">📊 유입 통계 <small class="muted">(무효 제외)</small></h2>
+    <div class="charts">
+      <div><h3>유입 경로</h3><div class="chart-box"><canvas id="pie"></canvas></div></div>
+      <div><h3>일별 사전예약 수 (KST)</h3><div class="chart-box"><canvas id="bar"></canvas></div></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2 class="panel-title">🏆 홍보자 랭킹 (전체)</h2>
+    <p class="sub">무효 예약 제외. "미예약"은 추천인 본인이 아직 예약하지 않은 경우로, 공개 랭킹에는 나오지 않아요.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>순위</th><th>홍보자</th><th class="num">합계</th><th class="num">링크 경유</th><th class="num">직접 입력</th><th>1위 보상 지급</th></tr></thead>
+      <tbody id="rankBody"></tbody>
+    </table></div>
+  </section>
+
+  <section class="panel">
+    <h2 class="panel-title">📋 예약자 목록</h2>
+    <div class="tools">
+      <input id="search" type="search" placeholder="닉네임 / 홍보자 검색">
+      <select id="filter">
+        <option value="all">전체</option>
+        <option value="valid">유효만</option>
+        <option value="void">무효만</option>
+        <option value="unpaid">미지급(유효)</option>
+      </select>
+    </div>
+    <div class="table-wrap"><table>
+      <thead><tr>
+        <th data-sort="id">#</th>
+        <th data-sort="nickname">닉네임</th>
+        <th data-sort="source">유입 경로</th>
+        <th data-sort="referrer">홍보자</th>
+        <th data-sort="via_ref">ref 경유</th>
+        <th data-sort="created_at">예약 시각</th>
+        <th data-sort="reward_given">보상 지급</th>
+        <th data-sort="top_reward_given">1위 보상</th>
+        <th>관리</th>
+      </tr></thead>
+      <tbody id="rowsBody"></tbody>
+    </table></div>
+    <p id="rowCount" class="count-note"></p>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script type="module" src="js/admin.js"></script>
+</body>
+</html>

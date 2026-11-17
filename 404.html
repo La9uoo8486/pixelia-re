@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>이동 중...</title>
+<script>
+// GitHub Pages 404 처리: .../r/닉네임 → .../?ref=닉네임 (픽셀리아 사전예약 추천 링크)
+(function () {
+  var path = location.pathname;
+  var i = path.indexOf('/r/');
+  if (i < 0) return;
+  var nick = path.slice(i + 3).split('/')[0];
+  if (!nick) return;
+  location.replace(path.slice(0, i + 1) + '?ref=' + nick);
+})();
+</script>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0d0f1f; color: #eef0ff;
+    font-family: system-ui, -apple-system, 'Apple SD Gothic Neo', sans-serif; text-align: center; padding: 16px; }
+  a { color: #ffcb3b; }
+</style>
+</head>
+<body>
+<div>
+  <p style="font-size:40px;margin:0">404</p>
+  <p>페이지를 찾을 수 없어요.</p>
+  <p><a id="home" href="./">처음으로</a></p>
+</div>
+<script>
+  // 404 페이지는 어느 경로에서든 뜨므로 홈 링크를 사이트 최상위로 맞춤
+  var seg = location.pathname.split('/').filter(Boolean);
+  if (location.hostname.endsWith('github.io') && seg.length) document.getElementById('home').href = '/' + seg[0] + '/';
+  else document.getElementById('home').href = '/';
+</script>
+</body>
+</html>

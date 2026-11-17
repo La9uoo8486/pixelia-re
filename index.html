@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pixelia Pokemon Server · 사전예약</title>
+<meta name="description" content="Pixelia Pokemon Server 사전예약. 오픈 보상 받고 친구 초대해서 홍보 랭킹 1위에 도전하세요!">
+<meta property="og:title" content="Pixelia Pokemon Server 사전예약">
+<meta property="og:description" content="마인크래프트 베드락 포켓몬 서버 사전예약 진행 중! 12월 1일 오픈">
+<meta name="theme-color" content="#0d0f1f">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'%3E%3Crect x='4' y='1' width='8' height='1' fill='%23111'/%3E%3Crect x='2' y='2' width='12' height='5' fill='%23e53b3b'/%3E%3Crect x='1' y='7' width='14' height='2' fill='%23111'/%3E%3Crect x='2' y='9' width='12' height='5' fill='%23f2f2f2'/%3E%3Crect x='4' y='14' width='8' height='1' fill='%23111'/%3E%3Crect x='6' y='6' width='4' height='4' fill='%23111'/%3E%3Crect x='7' y='7' width='2' height='2' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/galmuri@2.40.3/dist/galmuri.css">
+<link rel="stylesheet" href="css/style.css">
+<script src="config.js"></script>
+</head>
+<body>
+<div id="demoBar" class="demo-bar" hidden>데모 모드 · config.js에 Supabase를 설정하면 실제 저장됩니다</div>
+
+<header class="hero">
+  <div class="stars" aria-hidden="true"></div>
+  <p class="hero-badge">MINECRAFT BEDROCK</p>
+  <h1 class="logo"><span class="logo-main">PIXELIA</span><span class="logo-sub">POKEMON SERVER</span></h1>
+  <p class="hero-copy">사전예약하고 <b>오픈 보상</b> 받아가세요!</p>
+</header>
+
+<main class="wrap">
+  <!-- 카운트다운 -->
+  <section class="panel" aria-labelledby="cdTitle">
+    <h2 id="cdTitle" class="panel-title">⏳ 오픈까지</h2>
+    <div id="countdown" class="countdown">
+      <div><b id="cdD">--</b><span>일</span></div>
+      <div><b id="cdH">--</b><span>시간</span></div>
+      <div><b id="cdM">--</b><span>분</span></div>
+      <div><b id="cdS">--</b><span>초</span></div>
+    </div>
+    <p id="openDate" class="muted center"></p>
+  </section>
+
+  <!-- 목표 게이지 -->
+  <section class="panel" aria-labelledby="goalTitle">
+    <h2 id="goalTitle" class="panel-title">🎯 사전예약 목표</h2>
+    <p class="gauge-count">현재 <b id="total">-</b>명 참여</p>
+    <div class="gauge" role="progressbar" aria-labelledby="goalTitle" aria-valuemin="0" id="gauge">
+      <div class="gauge-fill" id="gaugeFill"></div>
+      <div id="gaugeMarks"></div>
+    </div>
+    <ul id="goalList" class="goal-list"></ul>
+  </section>
+
+  <!-- 입력 폼 -->
+  <section class="panel panel-form" id="formPanel" aria-labelledby="formTitle">
+    <h2 id="formTitle" class="panel-title">📝 사전예약 하기</h2>
+    <div id="refHint" class="ref-hint" hidden></div>
+    <form id="form" novalidate>
+      <label class="field">
+        <span class="label">마크 닉네임 <em>*</em></span>
+        <input id="nick" name="nickname" type="text" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예) Steve_01" required>
+        <small class="hint">3~16자 · 영문, 숫자, 밑줄(_), 공백</small>
+      </label>
+
+      <fieldset class="field">
+        <legend class="label">어디서 보고 오셨나요? <em>*</em></legend>
+        <div class="chips" id="sources"></div>
+        <input id="sourceEtc" type="text" maxlength="50" placeholder="어디서 보셨는지 적어주세요" hidden>
+      </fieldset>
+
+      <label class="field">
+        <span class="label">추천해 준 사람의 마크 닉네임 <small>(선택)</small></span>
+        <input id="referrer" name="referrer" type="text" maxlength="16" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="없으면 비워두세요">
+      </label>
+
+      <p class="notice">🔒 오픈 보상 지급을 위해 닉네임을 수집합니다</p>
+      <div id="captcha" class="captcha"></div>
+      <p id="formError" class="form-error" role="alert"></p>
+      <button id="submit" class="btn btn-primary" type="submit">사전예약 완료하기 ▶</button>
+    </form>
+  </section>
+
+  <!-- 완료 화면 -->
+  <section class="panel panel-done" id="donePanel" hidden aria-labelledby="doneTitle">
+    <div class="done-ball" aria-hidden="true"></div>
+    <h2 id="doneTitle" class="done-title">사전예약 완료!</h2>
+    <p class="done-rank"><b id="donePos">-</b>번째 사전예약자</p>
+    <p class="muted center"><b id="doneNick"></b> 님, 오픈 날 서버에서 만나요!</p>
+    <div class="share">
+      <p class="label">🔗 내 추천 링크</p>
+      <div class="share-row">
+        <input id="myLink" type="text" readonly>
+        <button id="copyBtn" class="btn btn-small" type="button">복사</button>
+      </div>
+      <p class="hint">친구가 이 링크로 예약하면 홍보 랭킹에 반영돼요</p>
+    </div>
+    <a id="discordBtn" class="btn btn-discord" target="_blank" rel="noopener">디스코드 참여하기</a>
+  </section>
+
+  <!-- 홍보 랭킹 -->
+  <section class="panel" aria-labelledby="rankTitle">
+    <h2 id="rankTitle" class="panel-title">🏆 홍보 랭킹 TOP 10</h2>
+    <div class="rank-banner">👑 홍보 랭킹 1위는 오픈 시 보상 추가 지급!<span id="topReward"></span></div>
+    <ol id="ranking" class="ranking"><li class="muted">불러오는 중...</li></ol>
+  </section>
+</main>
+
+<footer class="footer">
+  <a id="discordFoot" class="foot-link" target="_blank" rel="noopener">Discord</a>
+  <p>© Pixelia Pokemon Server · 마인크래프트 및 포켓몬과 공식 제휴 없음</p>
+</footer>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
