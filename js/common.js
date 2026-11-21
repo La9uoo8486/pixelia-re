@@ -82,6 +82,7 @@ function sbBackend(storageKey) {
         if (error.code === '23514') throw new AppError('INVALID');
         if (t.includes('IP_ALREADY_REGISTERED') || (error.code === '23505' && t.includes('prereg_ip_locks'))) throw new AppError('IP_USED');
         if (t.includes('RATE_LIMITED')) throw new AppError('RATE');
+        if (t.includes('IP_UNKNOWN')) throw new AppError('IP_UNKNOWN');
         throw error;
       }
       return this.myPosition();

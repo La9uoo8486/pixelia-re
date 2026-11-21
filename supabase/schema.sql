@@ -151,7 +151,8 @@ grant execute on function public.my_position() to authenticated;
 -- 5. One pre-registration per IP
 --    The raw IP is never stored: only HMAC-SHA256(ip, secret salt).
 --    IPv6 is grouped by /64 (one household / one phone line).
---    Rows added from the Supabase dashboard have no request IP and are not limited.
+--    Rows added from the Supabase dashboard / SQL Editor are not limited.
+--    A visitor insert whose IP cannot be read is rejected (IP_UNKNOWN).
 --    Delete a row -> its IP is freed. Void a row -> the IP stays used.
 --    Turn off:  update public.app_config set value = 'off' where name = 'ip_limit';
 -- ============================================================
@@ -223,9 +224,15 @@ begin
     return null;
   end if;
 
+  -- Dashboard / SQL inserts (no API user) are not limited
+  if auth.uid() is null then
+    return null;
+  end if;
+
+  -- API insert without a readable IP -> reject (fail closed, never skip the check)
   ip := public.request_ip();
   if ip is null then
-    return null;
+    raise exception 'IP_UNKNOWN' using errcode = 'P0001';
   end if;
 
   k := case when family(ip) = 6 then network(set_masklen(ip, 64))::text else host(ip) end;
