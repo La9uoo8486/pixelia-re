@@ -52,7 +52,7 @@
 
   <section class="panel">
     <h2 class="panel-title">🏆 홍보자 랭킹 (전체)</h2>
-    <p class="sub">무효 예약 제외. "미예약"은 추천인 본인이 아직 예약하지 않은 경우로, 공개 랭킹에는 나오지 않아요.</p>
+    <p class="sub">무효 예약 제외. 서버가 의심으로 표시한 추천은 승인 전까지 합계에서 빠지고, 공개 랭킹에도 반영되지 않아요. "미예약"은 추천인 본인이 아직 예약하지 않은 경우로, 공개 랭킹에는 나오지 않아요.</p>
     <div class="table-wrap"><table>
       <thead><tr><th>순위</th><th>홍보자</th><th class="num">합계</th><th class="num">링크 경유</th><th class="num">직접 입력</th><th>1위 보상 지급</th></tr></thead>
       <tbody id="rankBody"></tbody>
@@ -68,7 +68,9 @@
         <option value="valid">유효만</option>
         <option value="void">무효만</option>
         <option value="unpaid">미지급(유효)</option>
+        <option value="flagged">의심(미검토)</option>
       </select>
+      <button type="button" id="bulkVoid" class="btn btn-ghost btn-small" hidden>의심 모두 무효</button>
     </div>
     <div class="table-wrap"><table>
       <thead><tr>
