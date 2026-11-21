@@ -159,6 +159,7 @@ const resetCaptcha = () => { if (captchaId !== null) { window.turnstile.reset(ca
 const ERR = {
   DUP_NICK: '이미 사전예약된 닉네임이에요.',
   ALREADY: '이 기기는 이미 사전예약했어요.',
+  IP_USED: '이 인터넷(와이파이)에서는 이미 사전예약했어요. 한 사람당 한 번만 가능해요. 가족·친구와 같은 와이파이라면 디스코드로 문의해주세요.',
   CAPTCHA: '보안 확인에 실패했어요. 다시 시도해주세요.',
   RATE: '요청이 너무 많아요. 잠시 후 다시 시도해주세요.',
   INVALID: '입력값을 다시 확인해주세요.',
