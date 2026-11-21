@@ -250,6 +250,136 @@ revoke all on function public.request_ip() from public;
 revoke all on function public.prereg_ip_guard() from public;
 
 -- ============================================================
+-- 7. Abuse guard (needs section 5 first: uses app_config)
+--    a) Site-wide speed limit: more than N sign-ups in 1 minute -> rejected (RATE_LIMITED).
+--    b) Auto flag (row is kept, nothing is deleted):
+--       'ref_burst' = one referrer got N+ referrals within M minutes (the whole burst is flagged)
+--       'bot_nick'  = WordWord1234 style nickname (e.g. NeonFox0420)
+--    Flagged referrals do NOT count in the public promoter ranking until an admin
+--    approves them (flag = 'ok') on admin.html. The total count is unchanged.
+--    Rows added from the Supabase dashboard are not checked.
+--    Change limits:  update public.app_config set value = '30' where name = 'rate_per_min';
+-- ============================================================
+alter table public.preregistrations add column if not exists flag text;
+grant update (flag) on public.preregistrations to authenticated;  -- admins only (policy above)
+
+create index if not exists preregistrations_created_idx on public.preregistrations (created_at);
+
+insert into public.app_config (name, value)
+values ('rate_per_min', '20'),
+       ('ref_burst_n', '5'),
+       ('ref_burst_min', '10')
+on conflict (name) do nothing;
+
+create or replace function public.cfg_int(k text, d int)
+returns int
+language sql stable security definer
+set search_path = public
+as $$
+  select coalesce((select nullif(value, '')::int from public.app_config where name = k), d);
+$$;
+
+create or replace function public.prereg_abuse_guard()
+returns trigger
+language plpgsql security definer
+set search_path = public
+as $$
+declare
+  per_min   int := public.cfg_int('rate_per_min', 20);
+  burst_n   int := public.cfg_int('ref_burst_n', 5);
+  burst_min int := public.cfg_int('ref_burst_min', 10);
+  flags     text[] := '{}';
+  n         int;
+begin
+  -- Visitors can never set flag themselves
+  new.flag := null;
+
+  -- Dashboard / SQL inserts (no API user) are trusted
+  if auth.uid() is null then
+    return new;
+  end if;
+
+  -- a) site-wide speed limit
+  if per_min > 0 then
+    select count(*) into n from public.preregistrations
+    where created_at > now() - interval '1 minute';
+    if n >= per_min then
+      raise exception 'RATE_LIMITED' using errcode = 'P0001';
+    end if;
+  end if;
+
+  -- b1) referral burst
+  if new.referrer is not null and burst_n > 0 then
+    select count(*) into n from public.preregistrations
+    where lower(referrer) = lower(new.referrer)
+      and created_at > now() - make_interval(mins => burst_min);
+    if n + 1 >= burst_n then
+      flags := array_append(flags, 'ref_burst');
+      update public.preregistrations
+      set flag = 'ref_burst'
+      where lower(referrer) = lower(new.referrer)
+        and created_at > now() - make_interval(mins => burst_min)
+        and flag is null;
+    end if;
+  end if;
+
+  -- b2) generated nickname pattern
+  if new.nickname ~ '^[A-Z][a-z]{2,}[A-Z][a-z]{2,}[0-9]{4}$' then
+    flags := array_append(flags, 'bot_nick');
+  end if;
+
+  if cardinality(flags) > 0 then
+    new.flag := array_to_string(flags, ',');
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists prereg_abuse_guard on public.preregistrations;
+create trigger prereg_abuse_guard
+  before insert on public.preregistrations
+  for each row execute function public.prereg_abuse_guard();
+
+revoke all on function public.cfg_int(text, int) from public;
+revoke all on function public.prereg_abuse_guard() from public;
+
+-- Public ranking: count only clean or approved referrals
+create or replace function public.get_promoter_ranking()
+returns table (nickname text, referrals int)
+language sql stable security definer
+set search_path = public
+as $$
+  select p.nickname, count(r.id)::int as referrals
+  from public.preregistrations r
+  join public.preregistrations p
+    on p.nickname_key = lower(r.referrer) and not p.is_void
+  where not r.is_void and r.referrer is not null
+    and (r.flag is null or r.flag = 'ok')
+  group by p.id, p.nickname
+  order by count(r.id) desc, p.id asc
+  limit 10;
+$$;
+revoke all on function public.get_promoter_ranking() from public;
+grant execute on function public.get_promoter_ranking() to anon, authenticated;
+
+-- One-time check of rows that already exist (only touches rows never reviewed)
+update public.preregistrations r
+set flag = 'bot_nick'
+where r.flag is null
+  and r.nickname ~ '^[A-Z][a-z]{2,}[A-Z][a-z]{2,}[0-9]{4}$';
+
+update public.preregistrations r
+set flag = coalesce(r.flag || ',', '') || 'ref_burst'
+where r.referrer is not null
+  and (r.flag is null or r.flag = 'bot_nick')
+  and (
+    select count(*) from public.preregistrations x
+    where lower(x.referrer) = lower(r.referrer)
+      and x.created_at between r.created_at - make_interval(mins => public.cfg_int('ref_burst_min', 10))
+                           and r.created_at + make_interval(mins => public.cfg_int('ref_burst_min', 10))
+  ) >= public.cfg_int('ref_burst_n', 5);
+
+-- ============================================================
 -- 6. Register an admin (run separately after creating the user)
 --    Replace the email, then run only this statement.
 -- ============================================================

@@ -83,6 +83,10 @@ function renderAll() {
   renderKpis(); renderCharts(); renderRanking(); renderRows();
 }
 const valid = () => rows.filter(r => !r.is_void);
+// 서버가 자동으로 붙인 의심 표시 ('ok' = 관리자가 승인함)
+const isSus = r => !!r.flag && r.flag !== 'ok';
+const FLAG_LABEL = { ref_burst: '추천 몰림', bot_nick: '자동생성 닉' };
+const flagText = f => String(f || '').split(',').map(x => FLAG_LABEL[x] || x).join(' · ');
 
 function renderKpis() {
   const v = valid();
@@ -90,6 +94,7 @@ function renderKpis() {
     ['전체 예약', rows.length],
     ['유효', v.length],
     ['무효', rows.length - v.length],
+    ['의심(미검토)', v.filter(isSus).length],
     ['추천인 입력', v.filter(r => r.referrer).length],
     ['링크 경유', v.filter(r => r.via_ref).length],
     ['보상 지급 완료', `${v.filter(r => r.reward_given).length}/${v.length}`],
@@ -141,10 +146,11 @@ function promoters() {
     if (!r.referrer) continue;
     const key = r.referrer.toLowerCase();
     const p = map.get(key) || { key, name: own.get(key)?.nickname || r.referrer, row: own.get(key) || null, total: 0, viaRef: 0, direct: 0 };
+    if (isSus(r)) { p.sus = (p.sus || 0) + 1; map.set(key, p); continue; }
     p.total++; if (r.via_ref) p.viaRef++; else p.direct++;
     map.set(key, p);
   }
-  return [...map.values()].sort((a, b) => b.total - a.total || (a.row?.id ?? 1e12) - (b.row?.id ?? 1e12));
+  return [...map.values()].filter(p => p.total || p.sus).sort((a, b) => b.total - a.total || (a.row?.id ?? 1e12) - (b.row?.id ?? 1e12));
 }
 function renderRanking() {
   const list = promoters();
@@ -155,7 +161,7 @@ function renderRanking() {
     const chk = p.row
       ? `<input type="checkbox" data-id="${p.row.id}" data-field="top_reward_given" ${p.row.top_reward_given ? 'checked' : ''} aria-label="${esc(p.name)} 1위 보상 지급">`
       : '<span class="muted">-</span>';
-    return `<tr><td>${rank === 1 ? '👑 1' : rank}</td><td>${esc(p.name)}${p.row ? '' : '<span class="tag">미예약</span>'}</td>` +
+    return `<tr><td>${rank === 1 ? '👑 1' : rank}</td><td>${esc(p.name)}${p.row ? '' : '<span class="tag">미예약</span>'}${p.sus ? `<span class="tag warn">의심 ${p.sus}명 제외</span>` : ''}</td>` +
       `<td class="num">${p.total}</td><td class="num">${p.viaRef}</td><td class="num">${p.direct}</td><td class="chk">${chk}</td></tr>`;
   }).join('');
 }
@@ -168,6 +174,7 @@ function filtered() {
     if (f === 'valid' && r.is_void) return false;
     if (f === 'void' && !r.is_void) return false;
     if (f === 'unpaid' && (r.is_void || r.reward_given)) return false;
+    if (f === 'flagged' && (r.is_void || !isSus(r))) return false;
     if (!q) return true;
     return r.nickname.toLowerCase().includes(q) || (r.referrer || '').toLowerCase().includes(q) || (r.source_etc || '').toLowerCase().includes(q);
   }).sort((a, b) => {
@@ -187,7 +194,7 @@ function renderRows() {
   $('rowsBody').innerHTML = list.map(r => `
     <tr class="${r.is_void ? 'void' : ''}">
       <td class="num">${r.id}</td>
-      <td>${esc(r.nickname)}</td>
+      <td>${esc(r.nickname)}${isSus(r) ? `<span class="tag warn">${esc(flagText(r.flag))}</span>` : ''}</td>
       <td>${esc(sourceLabel(r.source))}${r.source_etc ? ` <span class="muted">(${esc(r.source_etc)})</span>` : ''}</td>
       <td>${r.referrer ? esc(r.referrer) : '<span class="muted">-</span>'}</td>
       <td>${r.via_ref ? '<span class="tag yes">링크</span>' : (r.referrer ? '<span class="tag">직접</span>' : '<span class="muted">-</span>')}</td>
@@ -195,11 +202,15 @@ function renderRows() {
       <td class="chk"><input type="checkbox" data-id="${r.id}" data-field="reward_given" ${r.reward_given ? 'checked' : ''} aria-label="${esc(r.nickname)} 보상 지급"></td>
       <td class="chk"><input type="checkbox" data-id="${r.id}" data-field="top_reward_given" ${r.top_reward_given ? 'checked' : ''} aria-label="${esc(r.nickname)} 1위 보상 지급"></td>
       <td class="act">
+        ${isSus(r) ? `<button type="button" data-act="ok" data-id="${r.id}">승인</button>` : ''}
         <button type="button" data-act="void" data-id="${r.id}">${r.is_void ? '복구' : '무효'}</button>
         <button type="button" data-act="del" data-id="${r.id}" class="del">삭제</button>
       </td>
     </tr>`).join('') || '<tr><td colspan="9" class="muted">결과 없음</td></tr>';
   $('rowCount').textContent = `${list.length}건 표시 / 전체 ${rows.length}건`;
+  const bulk = $('filter').value === 'flagged' && list.length > 0;
+  $('bulkVoid').hidden = !bulk;
+  if (bulk) $('bulkVoid').textContent = `표시된 의심 ${list.length}건 모두 무효`;
 }
 $('search').addEventListener('input', renderRows);
 $('filter').addEventListener('change', renderRows);
@@ -229,12 +240,28 @@ document.addEventListener('change', e => {
 $('rowsBody').addEventListener('click', async e => {
   const b = e.target.closest('button[data-act]'); if (!b) return;
   const id = +b.dataset.id; const r = rows.find(x => x.id === id);
-  if (b.dataset.act === 'void') {
+  if (b.dataset.act === 'ok') {
+    patch(id, { flag: 'ok' }, '승인했어요 (랭킹에 반영)');
+  } else if (b.dataset.act === 'void') {
     patch(id, { is_void: !r.is_void }, r.is_void ? '복구했어요' : '무효 처리했어요 (랭킹·카운트에서 제외)');
   } else if (confirm(`"${r.nickname}" 예약을 완전히 삭제할까요? 되돌릴 수 없어요.\n(기록을 남기려면 '무효'를 쓰세요)`)) {
     try { await api.remove(id); rows = rows.filter(x => x.id !== id); renderAll(); toast('삭제했어요'); }
     catch (err) { toast('삭제 실패: ' + (err.message || err)); }
   }
+});
+
+// 의심 일괄 무효 (필터 '의심'일 때만 보임)
+$('bulkVoid').addEventListener('click', async () => {
+  const list = filtered();
+  if (!list.length || !confirm(`의심 예약 ${list.length}건을 모두 무효 처리할까요?\n(삭제가 아니라서 '복구'로 되돌릴 수 있어요)`)) return;
+  const btn = $('bulkVoid'); btn.disabled = true;
+  let fail = 0;
+  for (const r of list) {
+    try { await api.update(r.id, { is_void: true }); r.is_void = true; } catch (e) { console.error(e); fail++; }
+  }
+  btn.disabled = false;
+  renderAll();
+  toast(fail ? `${list.length - fail}건 무효, ${fail}건 실패` : `${list.length}건 무효 처리했어요`);
 });
 
 // ---------- CSV ----------
@@ -244,11 +271,11 @@ $('csvBtn').addEventListener('click', () => {
     if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; // 엑셀 수식 실행 방지
     return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
-  const head = ['번호', '닉네임', '유입경로', '기타내용', '홍보자', 'ref경유', '예약시각(KST)', '무효', '보상지급', '1위보상지급'];
+  const head = ['번호', '닉네임', '유입경로', '기타내용', '홍보자', 'ref경유', '예약시각(KST)', '무효', '보상지급', '1위보상지급', '의심'];
   const yn = b => b ? 'O' : '';
   const lines = rows.slice().sort((a, b) => a.id - b.id).map(r => [
     r.id, r.nickname, sourceLabel(r.source), r.source_etc, r.referrer, yn(r.via_ref),
-    new Date(r.created_at).toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }), yn(r.is_void), yn(r.reward_given), yn(r.top_reward_given),
+    new Date(r.created_at).toLocaleString('sv-SE', { timeZone: 'Asia/Seoul' }), yn(r.is_void), yn(r.reward_given), yn(r.top_reward_given), isSus(r) ? flagText(r.flag) : '',
   ].map(cell).join(','));
   const csv = '﻿' + [head.join(','), ...lines].join('\r\n');
   const a = document.createElement('a');

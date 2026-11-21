@@ -213,4 +213,5 @@ td.act button.del { background: var(--red-d); }
 input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--green); cursor: pointer; vertical-align: middle; }
 .tag { display: inline-block; font-size: 11px; padding: 1px 6px; background: var(--panel2); color: var(--muted); margin-left: 4px; }
 .tag.yes { background: rgba(74,222,128,.15); color: var(--green); }
+.tag.warn { background: rgba(255,203,59,.15); color: #ffcb3b; }
 .count-note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
