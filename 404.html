@@ -7,13 +7,16 @@
 <title>이동 중...</title>
 <script>
 // GitHub Pages 404 처리: .../r/닉네임 → .../?ref=닉네임 (픽셀리아 사전예약 추천 링크)
+function decodeURIComponentSafe(s) { try { return decodeURIComponent(s); } catch (e) { return s; } }
 (function () {
   var path = location.pathname;
   var i = path.indexOf('/r/');
   if (i < 0) return;
   var nick = path.slice(i + 3).split('/')[0];
   if (!nick) return;
-  location.replace(path.slice(0, i + 1) + '?ref=' + nick);
+  // 같은 사이트 안으로만 이동 ('//다른도메인' 형태 차단)
+  var base = '/' + path.slice(0, i + 1).replace(/^\/+/, '');
+  location.replace(base + '?ref=' + encodeURIComponent(decodeURIComponentSafe(nick)));
 })();
 </script>
 <style>
