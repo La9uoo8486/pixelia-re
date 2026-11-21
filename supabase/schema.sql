@@ -193,10 +193,12 @@ begin
   if h is null then
     return null;
   end if;
+  -- cf-connecting-ip is set by Cloudflare in front of Supabase (a client cannot override it).
+  -- Fallback: the LAST x-forwarded-for entry, which the proxy appends. The first entry
+  -- (and x-real-ip) can be sent by the client, so they are never used.
   v := coalesce(
     nullif(btrim(h ->> 'cf-connecting-ip'), ''),
-    nullif(btrim(h ->> 'x-real-ip'), ''),
-    nullif(btrim(split_part(h ->> 'x-forwarded-for', ',', 1)), '')
+    nullif(btrim(regexp_replace(coalesce(h ->> 'x-forwarded-for', ''), '^.*,', '')), '')
   );
   if v is null then
     return null;
@@ -276,7 +278,9 @@ returns int
 language sql stable security definer
 set search_path = public
 as $$
-  select coalesce((select nullif(value, '')::int from public.app_config where name = k), d);
+  -- Only plain numbers are read (never echoes other settings such as ip_salt in an error)
+  select coalesce((select value::int from public.app_config
+                   where name = k and value ~ '^[0-9]{1,6}$'), d);
 $$;
 
 create or replace function public.prereg_abuse_guard()
@@ -378,6 +382,16 @@ where r.referrer is not null
       and x.created_at between r.created_at - make_interval(mins => public.cfg_int('ref_burst_min', 10))
                            and r.created_at + make_interval(mins => public.cfg_int('ref_burst_min', 10))
   ) >= public.cfg_int('ref_burst_n', 5);
+
+-- ============================================================
+-- 8. Lock down internal functions
+--    Supabase grants EXECUTE on every new public function to anon/authenticated
+--    by default, so "revoke ... from public" alone is not enough.
+-- ============================================================
+revoke execute on function public.request_ip() from anon, authenticated;
+revoke execute on function public.prereg_ip_guard() from anon, authenticated;
+revoke execute on function public.cfg_int(text, int) from anon, authenticated;
+revoke execute on function public.prereg_abuse_guard() from anon, authenticated;
 
 -- ============================================================
 -- 6. Register an admin (run separately after creating the user)
