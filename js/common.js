@@ -80,6 +80,7 @@ function sbBackend(storageKey) {
         if (error.code === '23505' && t.includes('nickname_key')) throw new AppError('DUP_NICK');
         if (error.code === '23505' && t.includes('user_id')) throw new AppError('ALREADY');
         if (error.code === '23514') throw new AppError('INVALID');
+        if (t.includes('IP_ALREADY_REGISTERED') || (error.code === '23505' && t.includes('prereg_ip_locks'))) throw new AppError('IP_USED');
         throw error;
       }
       return this.myPosition();

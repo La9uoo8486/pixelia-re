@@ -148,7 +148,109 @@ grant execute on function public.get_promoter_ranking() to anon, authenticated;
 grant execute on function public.my_position() to authenticated;
 
 -- ============================================================
--- 5. Register an admin (run separately after creating the user)
+-- 5. One pre-registration per IP
+--    The raw IP is never stored: only HMAC-SHA256(ip, secret salt).
+--    IPv6 is grouped by /64 (one household / one phone line).
+--    Rows added from the Supabase dashboard have no request IP and are not limited.
+--    Delete a row -> its IP is freed. Void a row -> the IP stays used.
+--    Turn off:  update public.app_config set value = 'off' where name = 'ip_limit';
+-- ============================================================
+create extension if not exists pgcrypto with schema extensions;
+
+-- Private settings (no policies = not reachable through the API)
+create table if not exists public.app_config (
+  name  text primary key,
+  value text not null
+);
+alter table public.app_config enable row level security;
+revoke all on public.app_config from anon, authenticated;
+
+insert into public.app_config (name, value)
+values ('ip_salt', encode(extensions.gen_random_bytes(32), 'hex')),
+       ('ip_limit', 'on')
+on conflict (name) do nothing;
+
+-- Used IP hashes (no policies = not reachable through the API)
+create table if not exists public.prereg_ip_locks (
+  ip_hash    text primary key,
+  prereg_id  bigint not null unique references public.preregistrations (id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+alter table public.prereg_ip_locks enable row level security;
+revoke all on public.prereg_ip_locks from anon, authenticated;
+
+-- Caller IP from the API gateway headers (null when not called through the API)
+create or replace function public.request_ip()
+returns inet
+language plpgsql stable
+set search_path = public
+as $$
+declare
+  h json;
+  v text;
+begin
+  h := nullif(current_setting('request.headers', true), '')::json;
+  if h is null then
+    return null;
+  end if;
+  v := coalesce(
+    nullif(btrim(h ->> 'cf-connecting-ip'), ''),
+    nullif(btrim(h ->> 'x-real-ip'), ''),
+    nullif(btrim(split_part(h ->> 'x-forwarded-for', ',', 1)), '')
+  );
+  if v is null then
+    return null;
+  end if;
+  return v::inet;
+exception when others then
+  return null;
+end;
+$$;
+
+create or replace function public.prereg_ip_guard()
+returns trigger
+language plpgsql security definer
+set search_path = public, extensions
+as $$
+declare
+  ip   inet;
+  k    text;
+  salt text;
+begin
+  if coalesce((select value from public.app_config where name = 'ip_limit'), 'on') <> 'on' then
+    return null;
+  end if;
+
+  ip := public.request_ip();
+  if ip is null then
+    return null;
+  end if;
+
+  k := case when family(ip) = 6 then network(set_masklen(ip, 64))::text else host(ip) end;
+  select value into salt from public.app_config where name = 'ip_salt';
+  k := encode(extensions.hmac(k, coalesce(salt, ''), 'sha256'), 'hex');
+
+  insert into public.prereg_ip_locks (ip_hash, prereg_id)
+  values (k, new.id)
+  on conflict (ip_hash) do nothing;
+
+  if not found then
+    raise exception 'IP_ALREADY_REGISTERED' using errcode = 'P0001';
+  end if;
+  return null;
+end;
+$$;
+
+drop trigger if exists prereg_ip_guard on public.preregistrations;
+create trigger prereg_ip_guard
+  after insert on public.preregistrations
+  for each row execute function public.prereg_ip_guard();
+
+revoke all on function public.request_ip() from public;
+revoke all on function public.prereg_ip_guard() from public;
+
+-- ============================================================
+-- 6. Register an admin (run separately after creating the user)
 --    Replace the email, then run only this statement.
 -- ============================================================
 -- insert into public.admins (user_id, note)
