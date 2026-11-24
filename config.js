@@ -18,7 +18,7 @@ window.PIXELIA_CONFIG = {
   SITE_URL: '',
 
   // 오픈 시각 (KST)
-  OPEN_AT: '2026-12-01T00:00:00+09:00',
+  OPEN_AT: '2026-12-06T12:00:00+09:00',
 
   // 사전예약 보상 (오픈까지 카운트다운 아래 표시). items를 비우면 숨김
   PREREG_REWARD: {
