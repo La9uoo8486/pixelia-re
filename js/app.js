@@ -49,7 +49,7 @@ function toast(msg) {
 }
 
 // ---------- 카운트다운 ----------
-const OPEN = Date.parse(C.OPEN_AT || '2026-12-01T00:00:00+09:00');
+const OPEN = Date.parse(C.OPEN_AT || '2026-12-06T12:00:00+09:00');
 $('openDate').textContent = new Date(OPEN).toLocaleString('ko-KR', {
   timeZone: 'Asia/Seoul', year: 'numeric', month: 'long', day: 'numeric', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
 }) + ' 오픈 (한국시간)';
